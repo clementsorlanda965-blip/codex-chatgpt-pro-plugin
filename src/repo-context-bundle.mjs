@@ -344,7 +344,16 @@ export function buildRepoContextBundle({
     cwd: dir,
     encoding: "utf8",
   });
-  const zipped = zip.status === 0 && existsSync(zipPath);
+  let zipped = zip.status === 0 && existsSync(zipPath);
+  if (!zipped && process.platform === "win32") {
+    // Windows has no `zip`; System32 bsdtar builds a real zip via -a (format from extension)
+    const bsdtar = resolve(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
+    const tar = spawnSync(bsdtar, ["-a", "-cf", zipPath, "manifest.json", "repo-context.md"], {
+      cwd: dir,
+      encoding: "utf8",
+    });
+    zipped = tar.status === 0 && existsSync(zipPath);
+  }
   if (zipped) chmodSync(zipPath, 0o600);
 
   return {

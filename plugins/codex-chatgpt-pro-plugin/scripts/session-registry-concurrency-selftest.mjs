@@ -94,8 +94,9 @@ try {
   );
   assert.ok(workers.includes(saved.rooms.main.lineage[0].lastRunId));
 } finally {
-  rmSync(repo, { recursive: true, force: true });
-  rmSync(home, { recursive: true, force: true });
+  // Windows: AV/indexer can hold temp files briefly; retries avoid flaky EPERM cleanup
+  rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  rmSync(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
 console.log(JSON.stringify({ ok: true, tested: "session-registry-concurrency" }, null, 2));

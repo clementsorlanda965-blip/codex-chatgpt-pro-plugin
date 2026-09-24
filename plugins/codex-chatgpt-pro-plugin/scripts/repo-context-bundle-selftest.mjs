@@ -92,6 +92,7 @@ function assertBlocked(output, rule, file) {
   );
 }
 
+let symlinkSkipped = false;
 try {
   const result = buildRepoContextBundle({
     name: "selftest",
@@ -155,11 +156,26 @@ try {
   const symlinkRepo = initGitRepo(resolve(fixtureRoot, "symlink-secret"));
   const outsideSecret = resolve(fixtureRoot, "outside-secret.txt");
   write(outsideSecret, "outside secret\n");
-  symlinkSync(outsideSecret, resolve(symlinkRepo, "linked-secret.txt"));
-  assertBlocked(buildInChild(symlinkRepo), "realpath_root_escape", "linked-secret.txt");
+  try {
+    symlinkSync(outsideSecret, resolve(symlinkRepo, "linked-secret.txt"));
+  } catch (error) {
+    // Windows without Developer Mode/admin cannot create symlinks (EPERM)
+    if (error.code !== "EPERM") throw error;
+    symlinkSkipped = true;
+  }
+  if (!symlinkSkipped) {
+    assertBlocked(buildInChild(symlinkRepo), "realpath_root_escape", "linked-secret.txt");
+  }
 } finally {
-  rmSync(contextRoot, { recursive: true, force: true });
-  rmSync(fixtureRoot, { recursive: true, force: true });
+  // Windows: AV/indexer can hold temp files briefly; retries avoid flaky EPERM cleanup
+  rmSync(contextRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 
-console.log(JSON.stringify({ ok: true, tested: "repo-context-bundle" }, null, 2));
+console.log(
+  JSON.stringify(
+    { ok: true, tested: "repo-context-bundle", symlinkProbeSkipped: symlinkSkipped },
+    null,
+    2,
+  ),
+);
